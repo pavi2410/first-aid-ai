@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:image_picker/image_picker.dart';
 
 const String _apiKey = String.fromEnvironment('API_KEY');
 
@@ -45,22 +47,34 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _loading = false;
   String _generatedText = '';
   final List<String> _recentQueries = [];
+  File? _image;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
     _model = GenerativeModel(
-      model: 'gemini-1.5-flash-latest',
+      model: 'gemini-1.5-pro-latest',
       apiKey: _apiKey,
     );
+  }
+
+  Future<void> _pickImage() async {
+    final XFile? pickedFile =
+        await _picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() {
+        _image = File(pickedFile.path);
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title:
-            const Text('First Aid AI', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('First Aid AI',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         elevation: 0,
       ),
@@ -97,19 +111,43 @@ class _MyHomePageState extends State<MyHomePage> {
                       maxLines: 3,
                     ),
                     const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _loading
-                          ? null
-                          : () => _generateResponse(_textController.text),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 50),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: _loading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('Get Advice'),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _pickImage,
+                            icon: const Icon(Icons.image),
+                            label: const Text('Add Image'),
+                            style: ElevatedButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _loading
+                                ? null
+                                : () => _generateResponse(_textController.text),
+                            style: ElevatedButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: _loading
+                                ? const CircularProgressIndicator(
+                                    color: Colors.white)
+                                : const Text('Get Advice'),
+                          ),
+                        ),
+                      ],
                     ),
+                    if (_image != null) ...[
+                      const SizedBox(height: 16),
+                      Image.file(_image!, height: 200, fit: BoxFit.cover),
+                    ],
                     const SizedBox(height: 24),
                     if (_generatedText.isNotEmpty) ...[
                       Text(
@@ -165,7 +203,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _generateResponse(String prompt) async {
-    if (prompt.isEmpty) return;
+    if (prompt.isEmpty && _image == null) return;
 
     setState(() {
       _loading = true;
@@ -173,14 +211,27 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     try {
-      var response = await _model.generateContent([Content.text(prompt)]);
+      List<Content> contents = [];
+      if (prompt.isNotEmpty && _image != null) {
+        final imageBytes = await _image!.readAsBytes();
+
+        contents.add(Content.multi(
+            [DataPart("image/jpeg", imageBytes), TextPart(prompt)]));
+      } else if (prompt.isNotEmpty) {
+        contents.add(Content.text(prompt));
+      } else {
+        contents.add(Content.text('say hi'));
+      }
+      if (_image != null) {}
+
+      var response = await _model.generateContent(contents);
       var text = response.text;
 
       setState(() {
         _generatedText =
             text ?? 'Sorry, I couldn\'t generate a response. Please try again.';
         _loading = false;
-        if (!_recentQueries.contains(prompt)) {
+        if (!_recentQueries.contains(prompt) && prompt.isNotEmpty) {
           _recentQueries.insert(0, prompt);
           if (_recentQueries.length > 5) _recentQueries.removeLast();
         }
@@ -222,7 +273,8 @@ class SafetyButtonsBar extends StatelessWidget {
             label: 'ICE Contacts',
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('ICE Contacts feature coming soon!')),
+                const SnackBar(
+                    content: Text('ICE Contacts feature coming soon!')),
               );
             },
             color: Colors.blue,
