@@ -36,18 +36,17 @@
             -Ptrack-widget-creation=true \
             -Ptree-shake-icons=false \
             -Pfilesystem-scheme=org-dartlang-root \
-            -Pdart-define=API_KEY=$GEMINI_API_KEY \
             assembleDebug
 
           # TODO: Execute web build in debug mode.
           # flutter run does this transparently either way
           # https://github.com/flutter/flutter/issues/96283#issuecomment-1144750411
-          # flutter build web --profile --dart-define=Dart2jsOptimization=O0 --dart-define=API_KEY=$GEMINI_API_KEY
+          # flutter build web --profile --dart-define=Dart2jsOptimization=O0
 
           adb -s localhost:5555 wait-for-device
         '';
       };
-      
+
       # To run something each time the workspace is (re)started, use the `onStart` hook
     };
     # Enable previews and customize configuration
@@ -55,11 +54,11 @@
       enable = true;
       previews = {
         web = {
-          command = ["flutter" "run" "--machine" "-d" "web-server" "--web-hostname" "0.0.0.0" "--web-port" "$PORT" "--dart-define=API_KEY=$GEMINI_API_KEY"];
+          command = [ "flutter" "run" "--machine" "-d" "web-server" "--web-hostname" "0.0.0.0" "--web-port" "$PORT" "--dart-define" "API_KEY=AIzaSyAh3kDQ-6oAs-fkBbGpAsnERc3ee3Huxpg" ];
           manager = "flutter";
         };
         android = {
-          command = ["flutter" "run" "--machine" "-d" "android" "-d" "localhost:5555" "--dart-define=API_KEY=$GEMINI_API_KEY"];
+          command = [ "flutter" "run" "--machine" "-d" "android" "-d" "localhost:5555" "--dart-define" "API_KEY=AIzaSyAh3kDQ-6oAs-fkBbGpAsnERc3ee3Huxpg" ];
           manager = "flutter";
         };
       };
