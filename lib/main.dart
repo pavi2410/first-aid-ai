@@ -4,6 +4,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 const String _apiKey = String.fromEnvironment('API_KEY');
 
@@ -49,6 +50,8 @@ class _MyHomePageState extends State<MyHomePage> {
   final List<String> _recentQueries = [];
   File? _image;
   final ImagePicker _picker = ImagePicker();
+  late stt.SpeechToText _speech;
+  bool _isListening = false;
 
   @override
   void initState() {
@@ -57,6 +60,7 @@ class _MyHomePageState extends State<MyHomePage> {
       model: 'gemini-1.5-pro-latest',
       apiKey: _apiKey,
     );
+    _speech = stt.SpeechToText();
   }
 
   Future<void> _pickImage() async {
@@ -66,6 +70,24 @@ class _MyHomePageState extends State<MyHomePage> {
       setState(() {
         _image = File(pickedFile.path);
       });
+    }
+  }
+
+  void _listen() async {
+    if (!_isListening) {
+      bool available = await _speech.initialize(
+        onStatus: (val) => setState(() => _isListening = _speech.isListening),
+        onError: (val) => setState(() => _isListening = false),
+      );
+      if (available) {
+        _speech.listen(
+          onResult: (val) => setState(() {
+            _textController.text = val.recognizedWords;
+          }),
+        );
+      }
+    } else {
+      _speech.stop();
     }
   }
 
@@ -100,15 +122,25 @@ class _MyHomePageState extends State<MyHomePage> {
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     const SizedBox(height: 16),
-                    TextField(
-                      controller: _textController,
-                      decoration: InputDecoration(
-                        hintText: 'E.g., How to treat a burn?',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        filled: true,
-                      ),
-                      maxLines: 3,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _textController,
+                            decoration: InputDecoration(
+                              hintText: 'E.g., How to treat a burn?',
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              filled: true,
+                            ),
+                            maxLines: 3,
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(_isListening ? Icons.mic : Icons.mic_none),
+                          onPressed: _listen,
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -203,6 +235,10 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _generateResponse(String prompt) async {
+    if (_isListening) {
+      _speech.stop();
+    }
+
     if (prompt.isEmpty && _image == null) return;
 
     setState(() {
@@ -222,7 +258,6 @@ class _MyHomePageState extends State<MyHomePage> {
       } else {
         contents.add(Content.text('say hi'));
       }
-      if (_image != null) {}
 
       var response = await _model.generateContent(contents);
       var text = response.text;
